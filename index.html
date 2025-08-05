@@ -148,7 +148,7 @@
     </div>
 
     <script>
-        let html5QrcodeScanner = null;
+        let html5QrCode = null;
         let isScanning = false;
 
         const startBtn = document.getElementById('startBtn');
@@ -165,29 +165,51 @@
         });
 
         function startScanner() {
-            html5QrcodeScanner = new Html5QrcodeScanner(
-                "reader",
-                { 
-                    fps: 10, 
-                    qrbox: { width: 250, height: 250 },
-                    aspectRatio: 1.0
-                },
-                false
-            );
-
-            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            status.textContent = 'Starting camera...';
             
-            isScanning = true;
-            startBtn.textContent = 'Stop Scanner';
-            startBtn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
-            status.textContent = 'Scanner active - Point camera at QR code';
-            result.style.display = 'none';
+            // Use the basic Html5Qrcode directly
+            try {
+                html5QrCode = new Html5Qrcode("reader");
+                
+                // Try to start with default camera (environment-facing camera)
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 }
+                    },
+                    onScanSuccess,
+                    onScanFailure
+                ).then(() => {
+                    isScanning = true;
+                    startBtn.textContent = 'Stop Scanner';
+                    startBtn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+                    status.textContent = 'Scanner active - Point camera at QR code';
+                    result.style.display = 'none';
+                }).catch(err => {
+                    console.error('Scanner start error:', err);
+                    status.textContent = 'Error starting camera. Please check permissions.';
+                    isScanning = false;
+                    startBtn.textContent = 'Start Scanner';
+                    startBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                });
+            } catch (error) {
+                console.error('Scanner initialization error:', error);
+                status.textContent = 'Error starting scanner. Please check camera permissions.';
+                isScanning = false;
+                startBtn.textContent = 'Start Scanner';
+                startBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+            }
         }
 
         function stopScanner() {
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.clear();
-                html5QrcodeScanner = null;
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode = null;
+                }).catch(err => {
+                    console.error('Error stopping scanner:', err);
+                    html5QrCode = null;
+                });
             }
             
             isScanning = false;
@@ -223,41 +245,46 @@
         function onScanFailure(error) {
             // Handle scan failure silently
             console.warn('Scan failed:', error);
-        }//https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec
+        }
 
         async function validateTicket(ticketNumber, ecoCashRef, name, church) {
             try {
-                const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(ticketNumber)}&ecocash=${encodeURIComponent(ecoCashRef)}`;
+                // Create the full QR code string that matches your Apps Script expectation
+                const fullQrString = `${ticketNumber} | ${name} | ${church} | ${ecoCashRef}`;
+                const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(fullQrString)}`;
+                
+                console.log('Sending request to:', url);
+                console.log('Ticket Number:', ticketNumber);
+                console.log('EcoCash Ref:', ecoCashRef);
+                console.log('Name:', name);
+                console.log('Church:', church);
+                console.log('--- DEBUG INFO ---');
+                console.log('URL parameters:');
+                console.log('qr=' + encodeURIComponent(ticketNumber));
+                console.log('ecocash=' + encodeURIComponent(ecoCashRef));
+                console.log('--- END DEBUG ---');
                 
                 const response = await fetch(url);
                 
                 if (!response.ok) {
+                    console.error('HTTP Error:', response.status, response.statusText);
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-                const data = await response.json();
+                console.log('Response status:', response.status);
+                const responseText = await response.text();
+                console.log('Response text:', responseText);
                 
-                // Hide loading
+                // Handle response from Google Apps Script
                 loading.style.display = 'none';
                 
-                if (!data || data.length === 0) {
-                    showResult('❌ Ticket not found or invalid.', false);
-                    return;
-                }
-                
-                // Get the first (and should be only) result
-                const record = data[0];
-                
-                // Check if all 4 fields match exactly
-                const nameMatches = record.Name && record.Name.trim() === name;
-                const churchMatches = record.Church && record.Church.trim() === church;
-                const ticketMatches = record['Ticket Number'] && record['Ticket Number'].trim() === ticketNumber;
-                const ecoCashMatches = record['EcoCash Ref'] && record['EcoCash Ref'].trim() === ecoCashRef;
-                
-                if (nameMatches && churchMatches && ticketMatches && ecoCashMatches) {
+                if (responseText.includes('VALID')) {
                     showResult('✅ Ticket is valid.', true);
-                } else {
+                } else if (responseText.includes('INVALID')) {
                     showResult('❌ Ticket not found or invalid.', false);
+                } else {
+                    console.error('Unexpected response:', responseText);
+                    showResult('❌ Error validating ticket. Please try again.', false);
                 }
                 
             } catch (error) {
