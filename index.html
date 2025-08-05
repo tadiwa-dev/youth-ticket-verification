@@ -292,30 +292,55 @@
                     console.log('Name:', name);
                     console.log('Church:', church);
                     
-                    const response = await fetch(url);
+                    // Add timeout to the fetch request
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
                     
-                    if (response.ok) {
-                        const responseText = await response.text();
-                        console.log('Response text:', responseText);
+                    try {
+                        const response = await fetch(url, {
+                            signal: controller.signal,
+                            mode: 'cors'
+                        });
+                        clearTimeout(timeoutId);
                         
-                        loading.style.display = 'none';
-                        
-                        if (responseText.includes('VALID')) {
-                            showResult('✅ Ticket is valid.', true);
-                            return;
-                        } else if (responseText.includes('INVALID')) {
-                            showResult('❌ Ticket not found or invalid.', false);
+                        if (response.ok) {
+                            const responseText = await response.text();
+                            console.log('Response text:', responseText);
+                            
+                            loading.style.display = 'none';
+                            
+                            if (responseText.includes('VALID')) {
+                                showResult('✅ Ticket is valid.', true);
+                                return;
+                            } else if (responseText.includes('INVALID')) {
+                                showResult('❌ Ticket not found or invalid.', false);
+                                return;
+                            } else {
+                                console.log('Unexpected response, falling back to offline mode');
+                                validateOffline(ticketNumber, ecoCashRef, name, church);
+                                return;
+                            }
+                        } else {
+                            console.log('HTTP error, falling back to offline mode');
+                            validateOffline(ticketNumber, ecoCashRef, name, church);
                             return;
                         }
+                    } catch (fetchError) {
+                        clearTimeout(timeoutId);
+                        console.error('Fetch error:', fetchError);
+                        if (fetchError.name === 'AbortError') {
+                            console.log('Request timed out, using offline mode');
+                        }
+                        validateOffline(ticketNumber, ecoCashRef, name, church);
+                        return;
                     }
+                } else {
+                    console.log('No internet connection, using offline mode');
+                    validateOffline(ticketNumber, ecoCashRef, name, church);
                 }
                 
-                // Fallback to offline validation
-                console.log('Using offline validation...');
-                validateOffline(ticketNumber, ecoCashRef, name, church);
-                
             } catch (error) {
-                console.error('Online validation failed, using offline mode:', error);
+                console.error('Validation error:', error);
                 validateOffline(ticketNumber, ecoCashRef, name, church);
             }
         }
@@ -373,21 +398,39 @@
                 
                 const syncUrl = 'https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec';
                 
-                const response = await fetch(syncUrl);
-                if (response.ok) {
-                    const tickets = await response.json();
+                // Add timeout to sync request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+                
+                try {
+                    const response = await fetch(syncUrl, {
+                        signal: controller.signal,
+                        mode: 'cors'
+                    });
+                    clearTimeout(timeoutId);
                     
-                    // Store tickets in localStorage for offline use
-                    localStorage.setItem('tickets', JSON.stringify(tickets));
-                    console.log(`Synced ${tickets.length} tickets for offline use`);
-                    
-                    // Show sync status to user
-                    status.textContent = `✅ Synced ${tickets.length} tickets for offline use`;
-                    setTimeout(() => {
-                        if (isScanning) {
-                            status.textContent = 'Scanner active - Point camera at QR code';
-                        }
-                    }, 2000);
+                    if (response.ok) {
+                        const tickets = await response.json();
+                        
+                        // Store tickets in localStorage for offline use
+                        localStorage.setItem('tickets', JSON.stringify(tickets));
+                        console.log(`Synced ${tickets.length} tickets for offline use`);
+                        
+                        // Show sync status to user
+                        status.textContent = `✅ Synced ${tickets.length} tickets for offline use`;
+                        setTimeout(() => {
+                            if (isScanning) {
+                                status.textContent = 'Scanner active - Point camera at QR code';
+                            }
+                        }, 2000);
+                    } else {
+                        console.error('Sync failed with status:', response.status);
+                        status.textContent = '⚠️ Sync failed - Using offline mode';
+                    }
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    console.error('Sync fetch error:', fetchError);
+                    status.textContent = '⚠️ Sync failed - Using offline mode';
                 }
             } catch (error) {
                 console.error('Failed to sync tickets:', error);
