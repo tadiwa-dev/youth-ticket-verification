@@ -227,7 +227,7 @@
 
         async function validateTicket(ticketNumber, ecoCashRef, name, church) {
             try {
-                const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec${encodeURIComponent(ticketNumber)}&ecocash=${encodeURIComponent(ecoCashRef)}`;
+                const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(ticketNumber)}&ecocash=${encodeURIComponent(ecoCashRef)}`;
                 
                 const response = await fetch(url);
                 
