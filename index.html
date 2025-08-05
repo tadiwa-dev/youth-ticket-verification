@@ -139,6 +139,13 @@
         
         <div id="status" class="status"></div>
         
+        <div id="mobile-help" style="margin-top: 15px; padding: 15px; background: #fff3cd; color: #856404; border-radius: 10px; border: 1px solid #ffeaa7; font-size: 14px; display: none;">
+            <strong>📱 Mobile Camera Access:</strong><br>
+            • Tap "Allow" when prompted for camera permission<br>
+            • If no prompt appears, check your browser settings<br>
+            • Try refreshing the page if camera doesn't start
+        </div>
+        
         <div id="loading" class="loading">
             <div class="spinner"></div>
             Validating ticket...
@@ -155,6 +162,12 @@
         const status = document.getElementById('status');
         const loading = document.getElementById('loading');
         const result = document.getElementById('result');
+        const mobileHelp = document.getElementById('mobile-help');
+        
+        // Show mobile help on mobile devices
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            mobileHelp.style.display = 'block';
+        }
 
         startBtn.addEventListener('click', () => {
             if (!isScanning) {
@@ -165,7 +178,7 @@
         });
 
         function startScanner() {
-            status.textContent = 'Starting camera...';
+            status.textContent = 'Requesting camera permission...';
             
             // Use the basic Html5Qrcode directly
             try {
@@ -188,7 +201,18 @@
                     result.style.display = 'none';
                 }).catch(err => {
                     console.error('Scanner start error:', err);
-                    status.textContent = 'Error starting camera. Please check permissions.';
+                    
+                    // Provide specific guidance based on error type
+                    if (err.name === 'NotAllowedError') {
+                        status.textContent = 'Camera access denied. Please allow camera permissions in your browser settings and try again.';
+                    } else if (err.name === 'NotFoundError') {
+                        status.textContent = 'No camera found. Please check if your device has a camera.';
+                    } else if (err.name === 'NotSupportedError') {
+                        status.textContent = 'Camera not supported. Please try a different browser.';
+                    } else {
+                        status.textContent = 'Error starting camera. Please check permissions and try again.';
+                    }
+                    
                     isScanning = false;
                     startBtn.textContent = 'Start Scanner';
                     startBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
