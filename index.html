@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Ticket Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #reader {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: 600;
+            display: none;
+        }
+
+        .result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #e3f2fd;
+            color: #1976d2;
+            border-radius: 15px;
+            border: 2px solid #bbdefb;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1976d2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 20px;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .start-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🎫 QR Ticket Scanner</div>
+        
+        <div id="reader"></div>
+        
+        <button id="startBtn" class="start-btn">Start Scanner</button>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            Validating ticket...
+        </div>
+        
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        let html5QrcodeScanner = null;
+        let isScanning = false;
+
+        const startBtn = document.getElementById('startBtn');
+        const status = document.getElementById('status');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+
+        startBtn.addEventListener('click', () => {
+            if (!isScanning) {
+                startScanner();
+            } else {
+                stopScanner();
+            }
+        });
+
+        function startScanner() {
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0
+                },
+                false
+            );
+
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            
+            isScanning = true;
+            startBtn.textContent = 'Stop Scanner';
+            startBtn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+            status.textContent = 'Scanner active - Point camera at QR code';
+            result.style.display = 'none';
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear();
+                html5QrcodeScanner = null;
+            }
+            
+            isScanning = false;
+            startBtn.textContent = 'Start Scanner';
+            startBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+            status.textContent = 'Scanner stopped';
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            console.log('QR Code scanned:', decodedText);
+            
+            // Stop scanning after successful scan
+            stopScanner();
+            
+            // Parse the QR code data
+            const fields = decodedText.split('|');
+            
+            if (fields.length !== 4) {
+                showResult('❌ Invalid QR code format. Expected 4 fields separated by |', false);
+                return;
+            }
+
+            const [ticketNumber, name, church, ecoCashRef] = fields.map(field => field.trim());
+            
+            // Show loading
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            
+            // Validate against Google Apps Script
+            validateTicket(ticketNumber, ecoCashRef, name, church);
+        }
+
+        function onScanFailure(error) {
+            // Handle scan failure silently
+            console.warn('Scan failed:', error);
+        }
+
+        async function validateTicket(ticketNumber, ecoCashRef, name, church) {
+            try {
+                const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(ticketNumber)}&ecocash=${encodeURIComponent(ecoCashRef)}`;
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Hide loading
+                loading.style.display = 'none';
+                
+                if (!data || data.length === 0) {
+                    showResult('❌ Ticket not found or invalid.', false);
+                    return;
+                }
+                
+                // Get the first (and should be only) result
+                const record = data[0];
+                
+                // Check if all 4 fields match exactly
+                const nameMatches = record.Name && record.Name.trim() === name;
+                const churchMatches = record.Church && record.Church.trim() === church;
+                const ticketMatches = record['Ticket Number'] && record['Ticket Number'].trim() === ticketNumber;
+                const ecoCashMatches = record['EcoCash Ref'] && record['EcoCash Ref'].trim() === ecoCashRef;
+                
+                if (nameMatches && churchMatches && ticketMatches && ecoCashMatches) {
+                    showResult('✅ Ticket is valid.', true);
+                } else {
+                    showResult('❌ Ticket not found or invalid.', false);
+                }
+                
+            } catch (error) {
+                console.error('Validation error:', error);
+                loading.style.display = 'none';
+                showResult('❌ Error validating ticket. Please try again.', false);
+            }
+        }
+
+        function showResult(message, isSuccess) {
+            result.textContent = message;
+            result.className = `result ${isSuccess ? 'success' : 'error'}`;
+            result.style.display = 'block';
+            
+            // Auto-restart scanner after 3 seconds
+            setTimeout(() => {
+                if (!isScanning) {
+                    startScanner();
+                }
+            }, 3000);
+        }
+
+        // Auto-start scanner when page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                startScanner();
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 
