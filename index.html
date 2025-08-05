@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Ticket Scanner</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="QR Scanner">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         * {
@@ -273,48 +281,63 @@
 
         async function validateTicket(ticketNumber, ecoCashRef, name, church) {
             try {
-                // Create the full QR code string that matches your Apps Script expectation
-                const fullQrString = `${ticketNumber} | ${name} | ${church} | ${ecoCashRef}`;
-                const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(fullQrString)}`;
-                
-                console.log('Sending request to:', url);
-                console.log('Ticket Number:', ticketNumber);
-                console.log('EcoCash Ref:', ecoCashRef);
-                console.log('Name:', name);
-                console.log('Church:', church);
-                console.log('--- DEBUG INFO ---');
-                console.log('URL parameters:');
-                console.log('qr=' + encodeURIComponent(ticketNumber));
-                console.log('ecocash=' + encodeURIComponent(ecoCashRef));
-                console.log('--- END DEBUG ---');
-                
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    console.error('HTTP Error:', response.status, response.statusText);
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                // Try online validation first
+                if (navigator.onLine) {
+                    const fullQrString = `${ticketNumber} | ${name} | ${church} | ${ecoCashRef}`;
+                    const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(fullQrString)}`;
+                    
+                    console.log('Sending request to:', url);
+                    console.log('Ticket Number:', ticketNumber);
+                    console.log('EcoCash Ref:', ecoCashRef);
+                    console.log('Name:', name);
+                    console.log('Church:', church);
+                    
+                    const response = await fetch(url);
+                    
+                    if (response.ok) {
+                        const responseText = await response.text();
+                        console.log('Response text:', responseText);
+                        
+                        loading.style.display = 'none';
+                        
+                        if (responseText.includes('VALID')) {
+                            showResult('✅ Ticket is valid.', true);
+                            return;
+                        } else if (responseText.includes('INVALID')) {
+                            showResult('❌ Ticket not found or invalid.', false);
+                            return;
+                        }
+                    }
                 }
                 
-                console.log('Response status:', response.status);
-                const responseText = await response.text();
-                console.log('Response text:', responseText);
-                
-                // Handle response from Google Apps Script
-                loading.style.display = 'none';
-                
-                if (responseText.includes('VALID')) {
-                    showResult('✅ Ticket is valid.', true);
-                } else if (responseText.includes('INVALID')) {
-                    showResult('❌ Ticket not found or invalid.', false);
-                } else {
-                    console.error('Unexpected response:', responseText);
-                    showResult('❌ Error validating ticket. Please try again.', false);
-                }
+                // Fallback to offline validation
+                console.log('Using offline validation...');
+                validateOffline(ticketNumber, ecoCashRef, name, church);
                 
             } catch (error) {
-                console.error('Validation error:', error);
-                loading.style.display = 'none';
-                showResult('❌ Error validating ticket. Please try again.', false);
+                console.error('Online validation failed, using offline mode:', error);
+                validateOffline(ticketNumber, ecoCashRef, name, church);
+            }
+        }
+
+        function validateOffline(ticketNumber, ecoCashRef, name, church) {
+            loading.style.display = 'none';
+            
+            // Get stored tickets from localStorage
+            const storedTickets = JSON.parse(localStorage.getItem('tickets') || '[]');
+            
+            // Check if ticket exists in stored data
+            const matchingTicket = storedTickets.find(ticket => 
+                ticket.ticketNumber === ticketNumber &&
+                ticket.ecoCashRef === ecoCashRef &&
+                ticket.name === name &&
+                ticket.church === church
+            );
+            
+            if (matchingTicket) {
+                showResult('✅ Ticket is valid. (Offline Mode)', true);
+            } else {
+                showResult('❌ Ticket not found or invalid. (Offline Mode)', false);
             }
         }
 
@@ -333,10 +356,57 @@
 
         // Auto-start scanner when page loads
         window.addEventListener('load', () => {
+            // Sync tickets from Google Sheet if online
+            if (navigator.onLine) {
+                syncTicketsFromSheet();
+            }
+            
             setTimeout(() => {
                 startScanner();
             }, 1000);
         });
+
+        // Function to sync tickets from Google Sheet
+        async function syncTicketsFromSheet() {
+            try {
+                console.log('Syncing tickets from Google Sheet...');
+                
+                const syncUrl = 'https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec';
+                
+                const response = await fetch(syncUrl);
+                if (response.ok) {
+                    const tickets = await response.json();
+                    
+                    // Store tickets in localStorage for offline use
+                    localStorage.setItem('tickets', JSON.stringify(tickets));
+                    console.log(`Synced ${tickets.length} tickets for offline use`);
+                    
+                    // Show sync status to user
+                    status.textContent = `✅ Synced ${tickets.length} tickets for offline use`;
+                    setTimeout(() => {
+                        if (isScanning) {
+                            status.textContent = 'Scanner active - Point camera at QR code';
+                        }
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Failed to sync tickets:', error);
+                status.textContent = '⚠️ Offline mode only - No internet connection';
+            }
+        }
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
     </script>
 </body>
 </html> 

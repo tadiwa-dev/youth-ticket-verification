@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate App Icons</title>
+</head>
+<body>
+    <h2>QR Scanner App Icons</h2>
+    <p>Right-click on each icon and "Save As" to download:</p>
+    
+    <div>
+        <h3>192x192 Icon</h3>
+        <canvas id="icon192" width="192" height="192"></canvas>
+        <br><br>
+        
+        <h3>512x512 Icon</h3>
+        <canvas id="icon512" width="512" height="512"></canvas>
+    </div>
+
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // QR code symbol
+            ctx.fillStyle = 'white';
+            const qrSize = size * 0.4;
+            const qrX = (size - qrSize) / 2;
+            const qrY = (size - qrSize) / 2;
+            
+            // Outer square
+            ctx.fillRect(qrX, qrY, qrSize, qrSize);
+            
+            // Inner square (QR code pattern)
+            ctx.fillStyle = '#667eea';
+            const innerSize = qrSize * 0.6;
+            const innerX = qrX + (qrSize - innerSize) / 2;
+            const innerY = qrY + (qrSize - innerSize) / 2;
+            ctx.fillRect(innerX, innerY, innerSize, innerSize);
+            
+            // Corner squares
+            const cornerSize = qrSize * 0.2;
+            ctx.fillStyle = 'white';
+            
+            // Top-left corner
+            ctx.fillRect(qrX + qrSize * 0.1, qrY + qrSize * 0.1, cornerSize, cornerSize);
+            // Top-right corner
+            ctx.fillRect(qrX + qrSize * 0.7, qrY + qrSize * 0.1, cornerSize, cornerSize);
+            // Bottom-left corner
+            ctx.fillRect(qrX + qrSize * 0.1, qrY + qrSize * 0.7, cornerSize, cornerSize);
+            
+            // Center square
+            ctx.fillRect(qrX + qrSize * 0.35, qrY + qrSize * 0.35, qrSize * 0.3, qrSize * 0.3);
+        }
+        
+        // Create both icons
+        createIcon('icon192', 192);
+        createIcon('icon512', 512);
+    </script>
+</body>
+</html> 
