@@ -160,6 +160,17 @@
         </div>
         
         <div id="result" class="result"></div>
+        
+        <!-- Scanned Information Display -->
+        <div id="scanned-info" style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 10px; border: 1px solid #dee2e6; display: none;">
+            <h4 style="margin-bottom: 10px; color: #495057;">📋 Scanned Information</h4>
+            <div style="text-align: left; font-size: 14px;">
+                <div><strong>Ticket Number:</strong> <span id="scanned-ticket"></span></div>
+                <div><strong>Name:</strong> <span id="scanned-name"></span></div>
+                <div><strong>Church:</strong> <span id="scanned-church"></span></div>
+                <div><strong>EcoCash Ref:</strong> <span id="scanned-ecocash"></span></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -171,6 +182,11 @@
         const loading = document.getElementById('loading');
         const result = document.getElementById('result');
         const mobileHelp = document.getElementById('mobile-help');
+        const scannedInfo = document.getElementById('scanned-info');
+        const scannedTicket = document.getElementById('scanned-ticket');
+        const scannedName = document.getElementById('scanned-name');
+        const scannedChurch = document.getElementById('scanned-church');
+        const scannedEcocash = document.getElementById('scanned-ecocash');
         
         // Show mobile help on mobile devices
         if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
@@ -266,12 +282,23 @@
 
             const [ticketNumber, name, church, ecoCashRef] = fields.map(field => field.trim());
             
+            // Display scanned information
+            displayScannedInfo(ticketNumber, name, church, ecoCashRef);
+            
             // Show loading
             loading.style.display = 'block';
             result.style.display = 'none';
             
             // Validate against Google Apps Script
             validateTicket(ticketNumber, ecoCashRef, name, church);
+        }
+
+        function displayScannedInfo(ticketNumber, name, church, ecoCashRef) {
+            scannedTicket.textContent = ticketNumber;
+            scannedName.textContent = name;
+            scannedChurch.textContent = church;
+            scannedEcocash.textContent = ecoCashRef;
+            scannedInfo.style.display = 'block';
         }
 
         function onScanFailure(error) {
@@ -311,6 +338,9 @@
                             
                             if (responseText.includes('VALID')) {
                                 showResult('✅ Ticket is valid.', true);
+                                return;
+                            } else if (responseText.includes('ALREADY_SCANNED')) {
+                                showResult('⚠️ Ticket has already been scanned.', false);
                                 return;
                             } else if (responseText.includes('INVALID')) {
                                 showResult('❌ Ticket not found or invalid.', false);
@@ -360,7 +390,12 @@
             );
             
             if (matchingTicket) {
-                showResult('✅ Ticket is valid. (Offline Mode)', true);
+                // Check if ticket has already been scanned (offline mode can't prevent duplicates)
+                if (matchingTicket.scanned && matchingTicket.scanned.toString().toLowerCase() === 'yes') {
+                    showResult('⚠️ Ticket has already been scanned. (Offline Mode)', false);
+                } else {
+                    showResult('✅ Ticket is valid. (Offline Mode)', true);
+                }
             } else {
                 showResult('❌ Ticket not found or invalid. (Offline Mode)', false);
             }
@@ -374,6 +409,8 @@
             // Auto-restart scanner after 3 seconds
             setTimeout(() => {
                 if (!isScanning) {
+                    // Hide scanned info when restarting
+                    scannedInfo.style.display = 'none';
                     startScanner();
                 }
             }, 3000);
