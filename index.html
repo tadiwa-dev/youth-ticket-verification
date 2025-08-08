@@ -308,69 +308,121 @@
 
         async function validateTicket(ticketNumber, ecoCashRef, name, church) {
             try {
-                // Try online validation first
-                if (navigator.onLine) {
-                    const fullQrString = `${ticketNumber} | ${name} | ${church} | ${ecoCashRef}`;
-                    const url = `https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec?qr=${encodeURIComponent(fullQrString)}`;
+                // Always try online validation first (don't rely on navigator.onLine)
+                const fullQrString = `${ticketNumber} | ${name} | ${church} | ${ecoCashRef}`;
+                const url = `https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec?qr=${encodeURIComponent(fullQrString)}`;
+                
+                console.log('=== ONLINE VALIDATION ATTEMPT ===');
+                console.log('Sending request to:', url);
+                console.log('Ticket Number:', ticketNumber);
+                console.log('EcoCash Ref:', ecoCashRef);
+                console.log('Name:', name);
+                console.log('Church:', church);
+                console.log('Full QR String:', fullQrString);
+                
+                // Add timeout to the fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15 seconds
+                
+                try {
+                    console.log('Making fetch request...');
+                    const response = await fetch(url, {
+                        signal: controller.signal,
+                        mode: 'cors',
+                        headers: {
+                            'Accept': 'application/json, text/plain, */*',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    clearTimeout(timeoutId);
                     
-                    console.log('Sending request to:', url);
-                    console.log('Ticket Number:', ticketNumber);
-                    console.log('EcoCash Ref:', ecoCashRef);
-                    console.log('Name:', name);
-                    console.log('Church:', church);
+                    console.log('Response received:', response);
+                    console.log('Response status:', response.status);
+                    console.log('Response ok:', response.ok);
                     
-                    // Add timeout to the fetch request
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-                    
-                    try {
-                        const response = await fetch(url, {
-                            signal: controller.signal,
-                            mode: 'cors'
-                        });
-                        clearTimeout(timeoutId);
+                    if (response.ok) {
+                        const responseText = await response.text();
+                        console.log('Response text:', responseText);
+                        console.log('Response text length:', responseText.length);
                         
-                        if (response.ok) {
-                            const responseText = await response.text();
-                            console.log('Response text:', responseText);
+                        loading.style.display = 'none';
+                        
+                        // Try to parse as JSON first
+                        try {
+                            const tickets = JSON.parse(responseText);
+                            console.log('Successfully parsed as JSON:', tickets);
                             
-                            loading.style.display = 'none';
+                            // Find matching ticket in the data
+                            const matchingTicket = tickets.find(ticket => 
+                                ticket.ticketNumber === ticketNumber &&
+                                ticket.ecoCashRef === ecoCashRef &&
+                                ticket.name === name &&
+                                ticket.church === church
+                            );
                             
+                            if (matchingTicket) {
+                                console.log('Found matching ticket:', matchingTicket);
+                                // Check if ticket has already been scanned
+                                if (matchingTicket.scanned && matchingTicket.scanned.toString().toLowerCase() === 'yes') {
+                                    showResult('⚠️ Ticket has already been scanned.', false);
+                                } else {
+                                    showResult('✅ Ticket is valid.', true);
+                                }
+                                return;
+                            } else {
+                                console.log('No matching ticket found in JSON data');
+                                showResult('❌ Ticket not found or invalid.', false);
+                                return;
+                            }
+                        } catch (parseError) {
+                            console.log('Not JSON response, checking for text validation');
+                            
+                            // Fall back to original text-based validation
                             if (responseText.includes('VALID')) {
+                                console.log('Found VALID in response');
                                 showResult('✅ Ticket is valid.', true);
                                 return;
                             } else if (responseText.includes('ALREADY_SCANNED')) {
+                                console.log('Found ALREADY_SCANNED in response');
                                 showResult('⚠️ Ticket has already been scanned.', false);
                                 return;
                             } else if (responseText.includes('INVALID')) {
+                                console.log('Found INVALID in response');
                                 showResult('❌ Ticket not found or invalid.', false);
                                 return;
                             } else {
-                                console.log('Unexpected response, falling back to offline mode');
+                                console.log('Unexpected response format:', responseText);
+                                console.log('Falling back to offline mode');
                                 validateOffline(ticketNumber, ecoCashRef, name, church);
                                 return;
                             }
-                        } else {
-                            console.log('HTTP error, falling back to offline mode');
-                            validateOffline(ticketNumber, ecoCashRef, name, church);
-                            return;
                         }
-                    } catch (fetchError) {
-                        clearTimeout(timeoutId);
-                        console.error('Fetch error:', fetchError);
-                        if (fetchError.name === 'AbortError') {
-                            console.log('Request timed out, using offline mode');
-                        }
+                    } else {
+                        console.log('HTTP error - Status:', response.status, response.statusText);
+                        console.log('Falling back to offline mode');
                         validateOffline(ticketNumber, ecoCashRef, name, church);
                         return;
                     }
-                } else {
-                    console.log('No internet connection, using offline mode');
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    console.error('Fetch error details:', fetchError);
+                    console.error('Fetch error name:', fetchError.name);
+                    console.error('Fetch error message:', fetchError.message);
+                    
+                    if (fetchError.name === 'AbortError') {
+                        console.log('Request timed out after 15 seconds');
+                    } else if (fetchError.name === 'TypeError') {
+                        console.log('Network error or CORS issue');
+                    }
+                    
+                    console.log('Falling back to offline mode');
                     validateOffline(ticketNumber, ecoCashRef, name, church);
+                    return;
                 }
                 
             } catch (error) {
                 console.error('Validation error:', error);
+                console.log('Falling back to offline mode');
                 validateOffline(ticketNumber, ecoCashRef, name, church);
             }
         }
