@@ -306,174 +306,83 @@
             console.warn('Scan failed:', error);
         }
 
-        // Test function to debug the Google Apps Script response
-        async function testGoogleAppsScriptResponse() {
-            const testQrString = "FAKE-TICKET | Fake Name | Fake Church | FAKE123";
-            const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(testQrString)}`;
-            
-            console.log('=== TESTING GOOGLE APPS SCRIPT RESPONSE ===');
-            console.log('Test URL:', url);
-            
-            try {
-                const response = await fetch(url, {
-                    mode: 'cors',
-                    headers: {
-                        'Accept': 'application/json, text/plain, */*',
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                console.log('Response status:', response.status);
-                console.log('Response ok:', response.ok);
-                
-                const responseText = await response.text();
-                console.log('Raw response text:', responseText);
-                console.log('Response text length:', responseText.length);
-                console.log('Response text trimmed:', responseText.trim());
-                console.log('Response text as array:', Array.from(responseText));
-                
-                // Check for hidden characters
-                for (let i = 0; i < responseText.length; i++) {
-                    const char = responseText[i];
-                    const charCode = char.charCodeAt(0);
-                    if (charCode < 32 || charCode > 126) {
-                        console.log(`Hidden character at position ${i}: ${charCode} (${char})`);
-                    }
-                }
-                
-            } catch (error) {
-                console.error('Test failed:', error);
-            }
-        }
-        
         // Function to clear cached tickets
         function clearCachedTickets() {
             localStorage.removeItem('tickets');
-            console.log('Cleared cached tickets');
         }
 
         async function validateTicket(ticketNumber, ecoCashRef, name, church) {
             try {
-                // Always try online validation first (don't rely on navigator.onLine)
                 const fullQrString = `${ticketNumber} | ${name} | ${church} | ${ecoCashRef}`;
                 const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(fullQrString)}`;
                 
-                console.log('=== ONLINE VALIDATION ATTEMPT ===');
-                console.log('Sending request to:', url);
-                console.log('Ticket Number:', ticketNumber);
-                console.log('EcoCash Ref:', ecoCashRef);
-                console.log('Name:', name);
-                console.log('Church:', church);
-                console.log('Full QR String:', fullQrString);
-                
                 // Add timeout to the fetch request
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15 seconds
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
                 
                 try {
-                    console.log('Making fetch request...');
                     const response = await fetch(url, {
                         signal: controller.signal,
-                        mode: 'cors',
-                        headers: {
-                            'Accept': 'application/json, text/plain, */*',
-                            'Content-Type': 'application/json'
-                        }
+                        mode: 'cors'
                     });
                     clearTimeout(timeoutId);
                     
-                    console.log('Response received:', response);
-                    console.log('Response status:', response.status);
-                    console.log('Response ok:', response.ok);
-                    
                     if (response.ok) {
                         const responseText = await response.text();
-                        console.log('Response text:', responseText);
-                        console.log('Response text length:', responseText.length);
-                        console.log('Response text trimmed:', responseText.trim());
-                        
                         loading.style.display = 'none';
                         
-                        // Check for exact text matches first (case-sensitive)
+                        // Check for exact text matches
                         const trimmedResponse = responseText.trim();
-                        console.log('Checking for exact matches with trimmed response:', `"${trimmedResponse}"`);
                         
                         if (trimmedResponse === 'VALID') {
-                            console.log('Found exact VALID match');
                             showResult('✅ Ticket is valid.', true);
                             return;
                         } else if (trimmedResponse === 'ALREADY_SCANNED') {
-                            console.log('Found exact ALREADY_SCANNED match');
                             showResult('⚠️ Ticket has already been scanned.', false);
                             return;
                         } else if (trimmedResponse === 'INVALID') {
-                            console.log('Found exact INVALID match');
                             showResult('❌ Ticket not found or invalid.', false);
                             return;
                         }
                         
-                        // If no exact match, check for case-insensitive exact matches
+                        // Check for case-insensitive matches
                         const lowerResponse = responseText.toLowerCase().trim();
-                        console.log('Checking for case-insensitive exact matches with:', `"${lowerResponse}"`);
                         
                         if (lowerResponse === 'valid') {
-                            console.log('Found exact VALID match (case-insensitive)');
                             showResult('✅ Ticket is valid.', true);
                             return;
                         } else if (lowerResponse === 'already_scanned') {
-                            console.log('Found exact ALREADY_SCANNED match (case-insensitive)');
                             showResult('⚠️ Ticket has already been scanned.', false);
                             return;
                         } else if (lowerResponse === 'invalid') {
-                            console.log('Found exact INVALID match (case-insensitive)');
                             showResult('❌ Ticket not found or invalid.', false);
                             return;
                         }
                         
-                        // If still no match, check for partial matches (but be more careful)
-                        console.log('No exact match found, checking for partial matches...');
-                        console.log('Lowercase response:', lowerResponse);
-                        
-                        // Only check for partial matches if the response doesn't contain conflicting words
+                        // Check for partial matches
                         if (lowerResponse.includes('valid') && !lowerResponse.includes('invalid') && !lowerResponse.includes('not valid')) {
-                            console.log('Found VALID in response (partial match)');
                             showResult('✅ Ticket is valid.', true);
                             return;
                         } else if (lowerResponse.includes('already_scanned')) {
-                            console.log('Found ALREADY_SCANNED in response (partial match)');
                             showResult('⚠️ Ticket has already been scanned.', false);
                             return;
                         } else if (lowerResponse.includes('invalid') || lowerResponse.includes('not valid')) {
-                            console.log('Found INVALID in response (partial match)');
                             showResult('❌ Ticket not found or invalid.', false);
                             return;
                         } else {
-                            console.log('Unexpected response format:', responseText);
-                            console.log('Response does not contain expected validation keywords');
-                            console.log('Response analysis:');
-                            console.log('  - Contains "valid":', lowerResponse.includes('valid'));
-                            console.log('  - Contains "invalid":', lowerResponse.includes('invalid'));
-                            console.log('  - Contains "already":', lowerResponse.includes('already'));
-                            console.log('  - Contains "scanned":', lowerResponse.includes('scanned'));
                             showResult('❌ Unable to validate ticket - Server response format error.', false);
                             return;
                         }
                     } else {
-                        console.log('HTTP error - Status:', response.status, response.statusText);
                         showResult('❌ Unable to validate ticket - Server error.', false);
                         return;
                     }
                 } catch (fetchError) {
                     clearTimeout(timeoutId);
-                    console.error('Fetch error details:', fetchError);
-                    console.error('Fetch error name:', fetchError.name);
-                    console.error('Fetch error message:', fetchError.message);
                     
                     if (fetchError.name === 'AbortError') {
-                        console.log('Request timed out after 15 seconds');
                         showResult('❌ Unable to validate ticket - Request timeout.', false);
                     } else if (fetchError.name === 'TypeError') {
-                        console.log('Network error or CORS issue');
                         showResult('❌ Unable to validate ticket - Network error.', false);
                     } else {
                         showResult('❌ Unable to validate ticket - Connection error.', false);
@@ -482,7 +391,6 @@
                 }
                 
             } catch (error) {
-                console.error('Validation error:', error);
                 showResult('❌ Unable to validate ticket - Validation error.', false);
             }
         }
@@ -511,53 +419,6 @@
                 startScanner();
             }, 1000);
         });
-
-        // Function to sync tickets from Google Sheet
-        async function syncTicketsFromSheet() {
-            try {
-                console.log('Syncing tickets from Google Sheet...');
-                
-                const syncUrl = 'https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec';
-                
-                // Add timeout to sync request
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-                
-                try {
-                    const response = await fetch(syncUrl, {
-                        signal: controller.signal,
-                        mode: 'cors'
-                    });
-                    clearTimeout(timeoutId);
-                    
-                    if (response.ok) {
-                        const tickets = await response.json();
-                        
-                        // Store tickets in localStorage for offline use
-                        localStorage.setItem('tickets', JSON.stringify(tickets));
-                        console.log(`Synced ${tickets.length} tickets for offline use`);
-                        
-                        // Show sync status to user
-                        status.textContent = `✅ Synced ${tickets.length} tickets for offline use`;
-                        setTimeout(() => {
-                            if (isScanning) {
-                                status.textContent = 'Scanner active - Point camera at QR code';
-                            }
-                        }, 2000);
-                    } else {
-                        console.error('Sync failed with status:', response.status);
-                        status.textContent = '⚠️ Sync failed - Using offline mode';
-                    }
-                } catch (fetchError) {
-                    clearTimeout(timeoutId);
-                    console.error('Sync fetch error:', fetchError);
-                    status.textContent = '⚠️ Sync failed - Using offline mode';
-                }
-            } catch (error) {
-                console.error('Failed to sync tickets:', error);
-                status.textContent = '⚠️ Offline mode only - No internet connection';
-            }
-        }
 
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
