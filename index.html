@@ -412,12 +412,30 @@
                             return;
                         }
                         
-                        // If no exact match, check if response contains any validation keywords
+                        // If no exact match, check for case-insensitive exact matches
+                        const lowerResponse = responseText.toLowerCase().trim();
+                        console.log('Checking for case-insensitive exact matches with:', `"${lowerResponse}"`);
+                        
+                        if (lowerResponse === 'valid') {
+                            console.log('Found exact VALID match (case-insensitive)');
+                            showResult('✅ Ticket is valid.', true);
+                            return;
+                        } else if (lowerResponse === 'already_scanned') {
+                            console.log('Found exact ALREADY_SCANNED match (case-insensitive)');
+                            showResult('⚠️ Ticket has already been scanned.', false);
+                            return;
+                        } else if (lowerResponse === 'invalid') {
+                            console.log('Found exact INVALID match (case-insensitive)');
+                            showResult('❌ Ticket not found or invalid.', false);
+                            return;
+                        }
+                        
+                        // If still no match, check for partial matches (but be more careful)
                         console.log('No exact match found, checking for partial matches...');
-                        const lowerResponse = responseText.toLowerCase();
                         console.log('Lowercase response:', lowerResponse);
                         
-                        if (lowerResponse.includes('valid') && !lowerResponse.includes('invalid')) {
+                        // Only check for partial matches if the response doesn't contain conflicting words
+                        if (lowerResponse.includes('valid') && !lowerResponse.includes('invalid') && !lowerResponse.includes('not valid')) {
                             console.log('Found VALID in response (partial match)');
                             showResult('✅ Ticket is valid.', true);
                             return;
@@ -425,7 +443,7 @@
                             console.log('Found ALREADY_SCANNED in response (partial match)');
                             showResult('⚠️ Ticket has already been scanned.', false);
                             return;
-                        } else if (lowerResponse.includes('invalid')) {
+                        } else if (lowerResponse.includes('invalid') || lowerResponse.includes('not valid')) {
                             console.log('Found INVALID in response (partial match)');
                             showResult('❌ Ticket not found or invalid.', false);
                             return;
@@ -499,7 +517,7 @@
             try {
                 console.log('Syncing tickets from Google Sheet...');
                 
-                const syncUrl = 'https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec';
+                const syncUrl = 'https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec';
                 
                 // Add timeout to sync request
                 const controller = new AbortController();
