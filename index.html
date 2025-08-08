@@ -306,6 +306,46 @@
             console.warn('Scan failed:', error);
         }
 
+        // Test function to debug the Google Apps Script response
+        async function testGoogleAppsScriptResponse() {
+            const testQrString = "FAKE-TICKET | Fake Name | Fake Church | FAKE123";
+            const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(testQrString)}`;
+            
+            console.log('=== TESTING GOOGLE APPS SCRIPT RESPONSE ===');
+            console.log('Test URL:', url);
+            
+            try {
+                const response = await fetch(url, {
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'application/json, text/plain, */*',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                const responseText = await response.text();
+                console.log('Raw response text:', responseText);
+                console.log('Response text length:', responseText.length);
+                console.log('Response text trimmed:', responseText.trim());
+                console.log('Response text as array:', Array.from(responseText));
+                
+                // Check for hidden characters
+                for (let i = 0; i < responseText.length; i++) {
+                    const char = responseText[i];
+                    const charCode = char.charCodeAt(0);
+                    if (charCode < 32 || charCode > 126) {
+                        console.log(`Hidden character at position ${i}: ${charCode} (${char})`);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Test failed:', error);
+            }
+        }
+        
         // Function to clear cached tickets
         function clearCachedTickets() {
             localStorage.removeItem('tickets');
@@ -350,57 +390,55 @@
                         const responseText = await response.text();
                         console.log('Response text:', responseText);
                         console.log('Response text length:', responseText.length);
+                        console.log('Response text trimmed:', responseText.trim());
                         
                         loading.style.display = 'none';
                         
-                        // Try to parse as JSON first
-                        try {
-                            const tickets = JSON.parse(responseText);
-                            console.log('Successfully parsed as JSON:', tickets);
-                            
-                            // Find matching ticket in the data
-                            const matchingTicket = tickets.find(ticket => 
-                                ticket.ticketNumber === ticketNumber &&
-                                ticket.ecoCashRef === ecoCashRef &&
-                                ticket.name === name &&
-                                ticket.church === church
-                            );
-                            
-                            if (matchingTicket) {
-                                console.log('Found matching ticket:', matchingTicket);
-                                // Check if ticket has already been scanned
-                                if (matchingTicket.scanned && matchingTicket.scanned.toString().toLowerCase() === 'yes') {
-                                    showResult('⚠️ Ticket has already been scanned.', false);
-                                } else {
-                                    showResult('✅ Ticket is valid.', true);
-                                }
-                                return;
-                            } else {
-                                console.log('No matching ticket found in JSON data');
-                                showResult('❌ Ticket not found or invalid.', false);
-                                return;
-                            }
-                        } catch (parseError) {
-                            console.log('Not JSON response, checking for text validation');
-                            
-                            // Fall back to original text-based validation
-                            if (responseText.includes('VALID')) {
-                                console.log('Found VALID in response');
-                                showResult('✅ Ticket is valid.', true);
-                                return;
-                            } else if (responseText.includes('ALREADY_SCANNED')) {
-                                console.log('Found ALREADY_SCANNED in response');
-                                showResult('⚠️ Ticket has already been scanned.', false);
-                                return;
-                            } else if (responseText.includes('INVALID')) {
-                                console.log('Found INVALID in response');
-                                showResult('❌ Ticket not found or invalid.', false);
-                                return;
-                            } else {
-                                console.log('Unexpected response format:', responseText);
-                                showResult('❌ Unable to validate ticket - Server response format error.', false);
-                                return;
-                            }
+                        // Check for exact text matches first (case-sensitive)
+                        const trimmedResponse = responseText.trim();
+                        console.log('Checking for exact matches with trimmed response:', `"${trimmedResponse}"`);
+                        
+                        if (trimmedResponse === 'VALID') {
+                            console.log('Found exact VALID match');
+                            showResult('✅ Ticket is valid.', true);
+                            return;
+                        } else if (trimmedResponse === 'ALREADY_SCANNED') {
+                            console.log('Found exact ALREADY_SCANNED match');
+                            showResult('⚠️ Ticket has already been scanned.', false);
+                            return;
+                        } else if (trimmedResponse === 'INVALID') {
+                            console.log('Found exact INVALID match');
+                            showResult('❌ Ticket not found or invalid.', false);
+                            return;
+                        }
+                        
+                        // If no exact match, check if response contains any validation keywords
+                        console.log('No exact match found, checking for partial matches...');
+                        const lowerResponse = responseText.toLowerCase();
+                        console.log('Lowercase response:', lowerResponse);
+                        
+                        if (lowerResponse.includes('valid') && !lowerResponse.includes('invalid')) {
+                            console.log('Found VALID in response (partial match)');
+                            showResult('✅ Ticket is valid.', true);
+                            return;
+                        } else if (lowerResponse.includes('already_scanned')) {
+                            console.log('Found ALREADY_SCANNED in response (partial match)');
+                            showResult('⚠️ Ticket has already been scanned.', false);
+                            return;
+                        } else if (lowerResponse.includes('invalid')) {
+                            console.log('Found INVALID in response (partial match)');
+                            showResult('❌ Ticket not found or invalid.', false);
+                            return;
+                        } else {
+                            console.log('Unexpected response format:', responseText);
+                            console.log('Response does not contain expected validation keywords');
+                            console.log('Response analysis:');
+                            console.log('  - Contains "valid":', lowerResponse.includes('valid'));
+                            console.log('  - Contains "invalid":', lowerResponse.includes('invalid'));
+                            console.log('  - Contains "already":', lowerResponse.includes('already'));
+                            console.log('  - Contains "scanned":', lowerResponse.includes('scanned'));
+                            showResult('❌ Unable to validate ticket - Server response format error.', false);
+                            return;
                         }
                     } else {
                         console.log('HTTP error - Status:', response.status, response.statusText);
@@ -461,7 +499,7 @@
             try {
                 console.log('Syncing tickets from Google Sheet...');
                 
-                const syncUrl = 'https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec';
+                const syncUrl = 'https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec';
                 
                 // Add timeout to sync request
                 const controller = new AbortController();
