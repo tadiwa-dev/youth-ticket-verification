@@ -316,7 +316,7 @@
             try {
                 // Always try online validation first (don't rely on navigator.onLine)
                 const fullQrString = `${ticketNumber} | ${name} | ${church} | ${ecoCashRef}`;
-                const url = `https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec?qr=${encodeURIComponent(fullQrString)}`;
+                const url = `https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec?qr=${encodeURIComponent(fullQrString)}`;
                 
                 console.log('=== ONLINE VALIDATION ATTEMPT ===');
                 console.log('Sending request to:', url);
@@ -461,7 +461,7 @@
             try {
                 console.log('Syncing tickets from Google Sheet...');
                 
-                const syncUrl = 'https://script.google.com/macros/s/AKfycby_guyHzN9bw7pTN2zZnBayNdOq73yVRbQ7YqJRgE8KKtQ7AO5ZVNVTbcScmilILqEX/exec';
+                const syncUrl = 'https://script.google.com/macros/s/AKfycbwguKy88PFo1wJz-1l1nZtqyJqpyWArgVZ_pIt-0gtwBFn3J4z44XhIdxKeHu2s04E/exec';
                 
                 // Add timeout to sync request
                 const controller = new AbortController();
