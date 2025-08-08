@@ -306,6 +306,12 @@
             console.warn('Scan failed:', error);
         }
 
+        // Function to clear cached tickets
+        function clearCachedTickets() {
+            localStorage.removeItem('tickets');
+            console.log('Cleared cached tickets');
+        }
+
         async function validateTicket(ticketNumber, ecoCashRef, name, church) {
             try {
                 // Always try online validation first (don't rely on navigator.onLine)
@@ -392,15 +398,13 @@
                                 return;
                             } else {
                                 console.log('Unexpected response format:', responseText);
-                                console.log('Falling back to offline mode');
-                                validateOffline(ticketNumber, ecoCashRef, name, church);
+                                showResult('❌ Unable to validate ticket - Server response format error.', false);
                                 return;
                             }
                         }
                     } else {
                         console.log('HTTP error - Status:', response.status, response.statusText);
-                        console.log('Falling back to offline mode');
-                        validateOffline(ticketNumber, ecoCashRef, name, church);
+                        showResult('❌ Unable to validate ticket - Server error.', false);
                         return;
                     }
                 } catch (fetchError) {
@@ -411,45 +415,19 @@
                     
                     if (fetchError.name === 'AbortError') {
                         console.log('Request timed out after 15 seconds');
+                        showResult('❌ Unable to validate ticket - Request timeout.', false);
                     } else if (fetchError.name === 'TypeError') {
                         console.log('Network error or CORS issue');
+                        showResult('❌ Unable to validate ticket - Network error.', false);
+                    } else {
+                        showResult('❌ Unable to validate ticket - Connection error.', false);
                     }
-                    
-                    console.log('Falling back to offline mode');
-                    validateOffline(ticketNumber, ecoCashRef, name, church);
                     return;
                 }
                 
             } catch (error) {
                 console.error('Validation error:', error);
-                console.log('Falling back to offline mode');
-                validateOffline(ticketNumber, ecoCashRef, name, church);
-            }
-        }
-
-        function validateOffline(ticketNumber, ecoCashRef, name, church) {
-            loading.style.display = 'none';
-            
-            // Get stored tickets from localStorage
-            const storedTickets = JSON.parse(localStorage.getItem('tickets') || '[]');
-            
-            // Check if ticket exists in stored data
-            const matchingTicket = storedTickets.find(ticket => 
-                ticket.ticketNumber === ticketNumber &&
-                ticket.ecoCashRef === ecoCashRef &&
-                ticket.name === name &&
-                ticket.church === church
-            );
-            
-            if (matchingTicket) {
-                // Check if ticket has already been scanned (offline mode can't prevent duplicates)
-                if (matchingTicket.scanned && matchingTicket.scanned.toString().toLowerCase() === 'yes') {
-                    showResult('⚠️ Ticket has already been scanned. (Offline Mode)', false);
-                } else {
-                    showResult('✅ Ticket is valid. (Offline Mode)', true);
-                }
-            } else {
-                showResult('❌ Ticket not found or invalid. (Offline Mode)', false);
+                showResult('❌ Unable to validate ticket - Validation error.', false);
             }
         }
 
@@ -470,10 +448,8 @@
 
         // Auto-start scanner when page loads
         window.addEventListener('load', () => {
-            // Sync tickets from Google Sheet if online
-            if (navigator.onLine) {
-                syncTicketsFromSheet();
-            }
+            // Clear any cached tickets to force fresh validation
+            clearCachedTickets();
             
             setTimeout(() => {
                 startScanner();
