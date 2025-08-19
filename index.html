@@ -7,7 +7,7 @@
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#1e3a8a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="QR Scanner">
@@ -240,14 +240,14 @@
                     
                     isScanning = false;
                     startBtn.textContent = 'Start Scanner';
-                    startBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                    startBtn.style.background = 'linear-gradient(135deg, #1e3a8a, #1e40af)';
                 });
             } catch (error) {
                 console.error('Scanner initialization error:', error);
                 status.textContent = 'Error starting scanner. Please check camera permissions.';
                 isScanning = false;
                 startBtn.textContent = 'Start Scanner';
-                startBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                startBtn.style.background = 'linear-gradient(135deg, #1e3a8a, #1e40af)';
             }
         }
 
@@ -263,7 +263,7 @@
             
             isScanning = false;
             startBtn.textContent = 'Start Scanner';
-            startBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+            startBtn.style.background = 'linear-gradient(135deg, #1e3a8a, #1e40af)';
             status.textContent = 'Scanner stopped';
         }
 
