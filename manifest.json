@@ -4,8 +4,8 @@
   "description": "Scan and validate QR code tickets offline",
   "start_url": "./qr-scanner.html",
   "display": "standalone",
-  "background_color": "#667eea",
-  "theme_color": "#667eea",
+  "background_color": "#ff6b35",
+  "theme_color": "#ff6b35",
   "orientation": "portrait",
   "scope": "./",
   "icons": [
